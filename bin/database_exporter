@@ -1,0 +1,28 @@
+#!/usr/bin/env ruby
+require 'yaml'
+require 'optparse'
+
+require 'database_exporter'
+
+ENV['DBCONF'] ||= '../config/database.yml'
+ENV['DB'] ||= 'postgres'
+
+DBCONF = YAML::load(IO.read(File.expand_path(ENV['DBCONF'], __FILE__)))
+DatabaseExporter::Source.establish_connection(DBCONF[ENV['DB']])
+ActiveRecord::Base.establish_connection(DBCONF["#{ENV['DB']}_sanitized"])
+
+options = {}
+OptionParser.new do |opts|
+  opts.on('--tables TABLES', Array, 'Restrict export scope to these tables') { |tables| options[:tables] = tables }
+  opts.on('--exclude-tables EXCLUDE_TABLES', Array, 'Exclude these tables') { |tables| options[:exclude_tables] = tables }
+  opts.on('--transformers TRANSFORMERS', 'Ruby module containing custom transformer definitions') { |trans| options[:transformers] = trans }
+end.parse!
+
+if options[:transformers]
+  begin require options[:transformers]
+  rescue LoadError; puts $!
+  end
+end
+
+DatabaseExporter.export to_db: DBCONF["#{ENV['DB']}_sanitized"], tables: options[:tables], exclude: options[:exclude_tables]
+
