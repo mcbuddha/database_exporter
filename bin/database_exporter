@@ -5,11 +5,13 @@ require 'optparse'
 require 'database_exporter'
 
 ENV['DBCONF'] ||= '../config/database.yml'
-ENV['DB'] ||= 'postgres'
+ENV['SOURCE'] ||= 'postgres'
+ENV['TARGET'] ||= "#{ENV['SOURCE']}_sanitized"
 
 DBCONF = YAML::load(IO.read(File.expand_path(ENV['DBCONF'], __FILE__)))
-DatabaseExporter::Source.establish_connection(DBCONF[ENV['DB']])
-ActiveRecord::Base.establish_connection(DBCONF["#{ENV['DB']}_sanitized"])
+
+DatabaseExporter::Source.establish_connection(DBCONF[ENV['SOURCE']])
+ActiveRecord::Base.establish_connection(DBCONF[ENV['TARGET']])
 
 options = {}
 OptionParser.new do |opts|
