@@ -10,8 +10,16 @@ ENV['TARGET'] ||= "#{ENV['SOURCE']}_sanitized"
 
 DBCONF = YAML::load(IO.read(File.expand_path(ENV['DBCONF'], __FILE__)))
 
-DatabaseExporter::Source.establish_connection(DBCONF[ENV['SOURCE']])
-ActiveRecord::Base.establish_connection(DBCONF[ENV['TARGET']])
+begin
+  db = ENV['SOURCE']
+  DatabaseExporter::Source.establish_connection(DBCONF[db]).connection
+  db = ENV['TARGET']
+  ActiveRecord::Base.establish_connection(DBCONF[db]).connection
+rescue Exception
+  puts "Couldn't connect to #{ENV['DBCONF']}[#{db}]:"
+  puts $!
+  abort
+end
 
 options = {}
 OptionParser.new do |opts|
@@ -26,5 +34,5 @@ if options[:transformers]
   end
 end
 
-DatabaseExporter.export to_db: DBCONF["#{ENV['DB']}_sanitized"], tables: options[:tables], exclude: options[:exclude_tables]
+DatabaseExporter.export to_db: DBCONF[ENV['TARGET']], tables: options[:tables], exclude: options[:exclude_tables]
 
