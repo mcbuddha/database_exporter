@@ -49,7 +49,9 @@ module DatabaseExporter
               if col_comment
                 if DatabaseExporter::Transformers.has_key?(col_comment)
                   DatabaseExporter::Transformers[col_comment].(row_i, src_row[col_i])
-                else nil
+                else
+                  warn "Transformer '#{col_comment}' not found"
+                  nil
                 end
               else src_row[col_i]
               end
