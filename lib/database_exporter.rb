@@ -29,7 +29,7 @@ module DatabaseExporter
     def duplicate_schema
       source_schema = StringIO.new
       ActiveRecord::SchemaDumper.dump(DatabaseExporter::Source.connection, source_schema)
-      eval source_schema.string
+      ActiveRecord::Migration.suppress_messages { eval source_schema.string }
     end
 
     def export opts={}
