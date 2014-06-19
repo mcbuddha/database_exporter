@@ -22,4 +22,5 @@ Gem::Specification.new do |spec|
   spec.add_development_dependency 'pg'
 
   spec.add_runtime_dependency 'schema_comments'
+  spec.add_runtime_dependency 'progress'
 end

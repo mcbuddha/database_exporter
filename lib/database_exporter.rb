@@ -9,6 +9,8 @@ end
 
 require 'database_exporter/transformers'
 
+require 'progress'
+
 module DatabaseExporter
   class << self
     def schema_comments
@@ -33,12 +35,14 @@ module DatabaseExporter
     def export opts={}
       duplicate_schema
       sch = schema_comments
+      max_col_name_len = sch.map{|k,v|v[:columns].keys}.flatten.map(&:length).sort.last
+
       tables = opts[:tables] || sch.keys.collect(&:to_s)
       tables -= opts[:exclude] || []
-      tables.each do |table|
+      tables.with_progress('Exporting').each do |table|
         result = DatabaseExporter::Source.connection.exec_query "SELECT * FROM #{table}"
         cols = result.columns.join ','
-        result.rows.each_with_index do |src_row, row_i|
+        result.rows.with_progress(table.rjust max_col_name_len).each_with_index do |src_row, row_i|
           values = result.columns.each_with_index.map do |col, col_i|
             col_comment = DatabaseExporter::Source.connection.retrieve_column_comment(table.to_sym, col.to_sym)
             value =
