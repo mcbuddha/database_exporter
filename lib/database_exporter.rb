@@ -1,6 +1,7 @@
 require 'database_exporter/version'
 
-require 'schema_comments'
+require 'activerecord_comments'
+require 'progress'
 
 module DatabaseExporter
   class Source < ActiveRecord::Base
@@ -8,8 +9,6 @@ module DatabaseExporter
 end
 
 require 'database_exporter/transformers'
-
-require 'progress'
 
 module DatabaseExporter
   class << self
