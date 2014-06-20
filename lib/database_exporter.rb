@@ -12,15 +12,20 @@ require 'database_exporter/transformers'
 
 module DatabaseExporter
   class << self
-    def schema_comments
-      schema_comments = {}
-      source = DatabaseExporter::Source.connection
-      source.tables.each do |table|
-        t_sym = table.to_sym
-        schema_comments[t_sym] = {
-          comment: source.retrieve_table_comment(t_sym),
-          columns: source.retrieve_column_comments(t_sym)
-        }
+    def extract_transformer comment; comment ? comment[/sanitize: ?(\w+)/,1] : nil; end
+
+    def read_comments conn, tables
+      tables.inject({}) do |transformers, table|
+        t_sym = table
+        transformers[t_sym] = conn.retrieve_column_comments(t_sym).inject({}) do |table_transformers, column|
+          transformer_key = extract_transformer column[1]
+          unless transformer_key.nil? || Transformers.include?(transformer_key)
+            abort "Transformer '#{transformer_key}' not found (#{table}.#{column_sym})" 
+          end
+          table_transformers[column[0]] = transformer_key && Transformers[transformer_key]
+          table_transformers
+        end
+        transformers
       end
       schema_comments
     end
