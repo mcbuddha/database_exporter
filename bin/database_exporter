@@ -4,34 +4,33 @@ require 'optparse'
 
 require 'database_exporter'
 
-ENV['DBCONF'] ||= '../config/database.yml'
 ENV['SOURCE'] ||= 'postgres'
 ENV['TARGET'] ||= "#{ENV['SOURCE']}_sanitized"
 
-DBCONF = YAML::load(IO.read(File.expand_path(ENV['DBCONF'], __FILE__)))
-
-begin
-  db = ENV['SOURCE']
-  DatabaseExporter::Source.establish_connection(DBCONF[db]).connection
-  db = ENV['TARGET']
-  ActiveRecord::Base.establish_connection(DBCONF[db]).connection
-rescue Exception
-  puts "Couldn't connect to #{ENV['DBCONF']}[#{db}]:"
-  puts $!
-  abort
-end
-
-options = {}
+options = {dbconf: File.expand_path('./config/database.yml', Dir.pwd)}
 OptionParser.new do |opts|
-  opts.on('--tables TABLES', Array, 'Restrict export scope to these tables') { |tables| options[:tables] = tables }
-  opts.on('--exclude-tables EXCLUDE_TABLES', Array, 'Exclude these tables') { |tables| options[:exclude_tables] = tables }
-  opts.on('--transformers TRANSFORMERS', 'Ruby module containing custom transformer definitions') { |trans| options[:transformers] = trans }
+  opts.on('-t', '--tables TABLES', Array, 'Restrict export scope to these tables') { |tables| options[:tables] = tables }
+  opts.on('-e', '--exclude EXCLUDE_TABLES', Array, 'Exclude these tables') { |tables| options[:exclude_tables] = tables }
+  opts.on('-r', '--transformers TRANSFORMERS', 'Ruby module containing custom transformer definitions') { |trans| options[:transformers] = trans }
+  opts.on('--conf DBCONF', 'Database config YAML') { |dbconf| options[:dbconf] = dbconf }
 end.parse!
 
 if options[:transformers]
   begin require options[:transformers]
   rescue LoadError; puts $!
   end
+end
+
+DBCONF = YAML::load IO.read options[:dbconf]
+
+begin
+  db = ENV['SOURCE']
+  DatabaseExporter::Source.establish_connection(DBCONF[db]).connection
+  db = ENV['TARGET']
+  ActiveRecord::Base.establish_connection(DBCONF[db]).connection
+rescue StandardError
+  puts "Couldn't connect to #{options[:dbconf]}[#{db}]: #{$!}"
+  abort
 end
 
 DatabaseExporter.export to_db: DBCONF[ENV['TARGET']], tables: options[:tables], exclude: options[:exclude_tables]
