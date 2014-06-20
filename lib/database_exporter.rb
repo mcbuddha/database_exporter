@@ -35,16 +35,14 @@ module DatabaseExporter
       ActiveRecord::Migration.suppress_messages { eval source_schema.string }
     end
 
-    def export opts={}
+    def export src, dest, opts={}
       duplicate_schema
-      tables = opts[:tables] || Source.connection.tables.collect(&:to_s)
-      tables -= opts[:exclude] || []
-
-      transformers = read_comments Source.connection, tables
+      tables = (opts[:tables] || src.tables.collect(&:to_s)) - (opts[:exclude] || [])
+      transformers = read_comments src, tables
       max_col_name_len = transformers.map{|k,v|v.keys}.flatten.map(&:length).sort.last
 
       tables.with_progress('Exporting').each do |table|
-        result = Source.connection.exec_query "SELECT * FROM #{table}"
+        result = src.exec_query "SELECT * FROM #{table}"
         cols = result.columns.join ','
         dest.transaction do
           result.rows.with_progress(table.rjust max_col_name_len).each_with_index do |src_row, row_i|
@@ -54,8 +52,6 @@ module DatabaseExporter
             end
             dest.insert_sql "INSERT INTO #{table} (#{cols}) VALUES (#{values.join ','})"
           end
-          sql = "INSERT INTO #{table} (#{cols}) VALUES (#{values.join ','})"
-          ActiveRecord::Base.connection.insert_sql sql
         end
       end
     end

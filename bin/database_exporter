@@ -33,5 +33,5 @@ rescue StandardError
   abort
 end
 
-DatabaseExporter.export to_db: DBCONF[ENV['TARGET']], tables: options[:tables], exclude: options[:exclude_tables]
+DatabaseExporter.export DatabaseExporter::Source.connection, ActiveRecord::Base.connection, tables: options[:tables], exclude: options[:exclude_tables]
 
