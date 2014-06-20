@@ -46,11 +46,13 @@ module DatabaseExporter
       tables.with_progress('Exporting').each do |table|
         result = Source.connection.exec_query "SELECT * FROM #{table}"
         cols = result.columns.join ','
-        result.rows.with_progress(table.rjust max_col_name_len).each_with_index do |src_row, row_i|
-          values = result.columns.each_with_index.map do |col, col_i|
-            transformer = transformers[table][col]
-            value = transformer ? Transformers[transformer].(row_i, src_row[col_i]) : src_row[col_i]
-            ActiveRecord::Base.connection.quote value
+        dest.transaction do
+          result.rows.with_progress(table.rjust max_col_name_len).each_with_index do |src_row, row_i|
+            values = result.columns.each_with_index.map do |col, col_i|
+              transformer = transformers[table][col]
+              dest.quote transformer ? Transformers[transformer].(row_i, src_row[col_i]) : src_row[col_i]
+            end
+            dest.insert_sql "INSERT INTO #{table} (#{cols}) VALUES (#{values.join ','})"
           end
           sql = "INSERT INTO #{table} (#{cols}) VALUES (#{values.join ','})"
           ActiveRecord::Base.connection.insert_sql sql
