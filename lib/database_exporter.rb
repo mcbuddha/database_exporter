@@ -27,38 +27,29 @@ module DatabaseExporter
         end
         transformers
       end
-      schema_comments
     end
 
     def duplicate_schema
       source_schema = StringIO.new
-      ActiveRecord::SchemaDumper.dump(DatabaseExporter::Source.connection, source_schema)
+      ActiveRecord::SchemaDumper.dump(Source.connection, source_schema)
       ActiveRecord::Migration.suppress_messages { eval source_schema.string }
     end
 
     def export opts={}
       duplicate_schema
-      sch = schema_comments
-      max_col_name_len = sch.map{|k,v|v[:columns].keys}.flatten.map(&:length).sort.last
-
-      tables = opts[:tables] || sch.keys.collect(&:to_s)
+      tables = opts[:tables] || Source.connection.tables.collect(&:to_s)
       tables -= opts[:exclude] || []
+
+      transformers = read_comments Source.connection, tables
+      max_col_name_len = transformers.map{|k,v|v.keys}.flatten.map(&:length).sort.last
+
       tables.with_progress('Exporting').each do |table|
-        result = DatabaseExporter::Source.connection.exec_query "SELECT * FROM #{table}"
+        result = Source.connection.exec_query "SELECT * FROM #{table}"
         cols = result.columns.join ','
         result.rows.with_progress(table.rjust max_col_name_len).each_with_index do |src_row, row_i|
           values = result.columns.each_with_index.map do |col, col_i|
-            col_comment = DatabaseExporter::Source.connection.retrieve_column_comment(table.to_sym, col.to_sym)
-            value =
-              if col_comment
-                if DatabaseExporter::Transformers.has_key?(col_comment)
-                  DatabaseExporter::Transformers[col_comment].(row_i, src_row[col_i])
-                else
-                  warn "Transformer '#{col_comment}' not found"
-                  nil
-                end
-              else src_row[col_i]
-              end
+            transformer = transformers[table][col]
+            value = transformer ? Transformers[transformer].(row_i, src_row[col_i]) : src_row[col_i]
             ActiveRecord::Base.connection.quote value
           end
           sql = "INSERT INTO #{table} (#{cols}) VALUES (#{values.join ','})"
