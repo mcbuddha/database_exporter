@@ -16,7 +16,7 @@ OptionParser.new do |opts|
 end.parse!
 
 if options[:transformers]
-  begin require options[:transformers]
+  begin require File.expand_path("./#{options[:transformers]}", Dir.pwd)
   rescue LoadError; puts $!
   end
 end
