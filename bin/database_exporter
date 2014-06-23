@@ -21,7 +21,7 @@ if options[:transformers]
   end
 end
 
-DBCONF = YAML::load IO.read options[:dbconf]
+DBCONF = YAML::load IO.read options[:dbconf] rescue abort "Error reading #{options[:dbconf]}: #{$!}"
 
 begin
   db = ENV['SOURCE']
@@ -29,8 +29,7 @@ begin
   db = ENV['TARGET']
   ActiveRecord::Base.establish_connection(DBCONF[db]).connection
 rescue StandardError
-  puts "Couldn't connect to #{options[:dbconf]}[#{db}]: #{$!}"
-  abort
+  abort "Couldn't connect to #{options[:dbconf]}[#{db}]: #{$!}"
 end
 
 DatabaseExporter.export DatabaseExporter::Source.connection, ActiveRecord::Base.connection, tables: options[:tables], exclude: options[:exclude_tables]

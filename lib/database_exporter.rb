@@ -15,12 +15,11 @@ module DatabaseExporter
     def extract_transformer comment; comment ? comment[/sanitize: ?(\w+)/,1] : nil; end
 
     def read_comments conn, tables
-      tables.inject({}) do |transformers, table|
-        t_sym = table
+      tables.inject({}) do |transformers, t_sym|
         transformers[t_sym] = conn.retrieve_column_comments(t_sym).inject({}) do |table_transformers, column|
           transformer_key = extract_transformer column[1]
           unless transformer_key.nil? || Transformers.include?(transformer_key)
-            abort "Transformer '#{transformer_key}' not found (#{table}.#{column_sym})" 
+            abort "Transformer '#{transformer_key}' not found (#{t_sym}.#{column[0]})"
           end
           table_transformers[column[0]] = transformer_key && Transformers[transformer_key]
           table_transformers

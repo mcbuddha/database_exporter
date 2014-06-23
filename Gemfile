@@ -7,5 +7,6 @@ gem 'activerecord_comments', git: 'https://github.com/mcbuddha/activerecord_comm
 
 group :development do
   gem 'pry'
+  gem 'rspec'
 end
 
