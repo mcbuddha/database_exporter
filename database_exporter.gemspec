@@ -8,7 +8,7 @@ Gem::Specification.new do |spec|
   spec.email         = ['msomogyi@whitepages.com']
   spec.summary       = %q{Export your SQL database}
   spec.description   = %q{Duplicate a databse with sanitization options using SQL comments}
-  spec.homepage      = ''
+  spec.homepage      = 'https://github.com/mcbuddha/database_exporter'
   spec.license       = 'MIT'
 
   spec.files         = `git ls-files -z`.split("\x0")
@@ -17,10 +17,10 @@ Gem::Specification.new do |spec|
   spec.require_paths = ['lib']
 
   spec.add_development_dependency 'bundler', '~> 1.6'
-  spec.add_development_dependency 'rake'
+  spec.add_development_dependency 'rake', '~> 10'
+  spec.add_development_dependency 'pg', '~> 0.17'
 
-  spec.add_development_dependency 'pg'
-
-  spec.add_runtime_dependency 'activerecord_comments'
-  spec.add_runtime_dependency 'progress'
+  spec.add_runtime_dependency 'activerecord_comments', '~> 0'
+  spec.add_runtime_dependency 'progress', '~> 3'
+  spec.add_runtime_dependency 'iconv', '~> 1'
 end
