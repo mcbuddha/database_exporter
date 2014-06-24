@@ -32,15 +32,14 @@ module DatabaseExporter
       schema_src = nil
       if schema.nil?
         schema_sio = StringIO.new
-        puts 'Dumping schema...'
+        puts 'Dumping schema.rb...'
         ActiveRecord::SchemaDumper.dump(Source.connection, schema_sio)
-        schema_src = schema_sio.string
+        puts 'Loading schema.rb...'
+        ActiveRecord::Migration.suppress_messages { eval schema_sio.string }
       else
-        puts 'Reading schema...'
+        puts 'Reading schema SQL...'
         schema_src = IO.read File.expand_path(schema, Dir.pwd)
-      end
-      puts 'Loading schema...'
-      ActiveRecord::Migration.suppress_messages { eval schema_src }
+        ActiveRecord::Migration.suppress_messages { ActiveRecord::Base.connection.exec_query schema_src }
     end
 
     def export src, dest, opts={}
