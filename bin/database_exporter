@@ -7,16 +7,17 @@ require 'database_exporter'
 ENV['SOURCE'] ||= 'postgres'
 ENV['TARGET'] ||= "#{ENV['SOURCE']}_sanitized"
 
-options = {dbconf: File.expand_path('./config/database.yml', Dir.pwd)}
+options = {dbconf: File.expand_path('config/database.yml', Dir.pwd)}
 OptionParser.new do |opts|
   opts.on('-t', '--tables TABLES', Array, 'Restrict export scope to these tables') { |tables| options[:tables] = tables }
   opts.on('-e', '--exclude EXCLUDE_TABLES', Array, 'Exclude these tables') { |tables| options[:exclude_tables] = tables }
   opts.on('-r', '--transformers TRANSFORMERS', 'Ruby module containing custom transformer definitions') { |trans| options[:transformers] = trans }
   opts.on('--conf DBCONF', 'Database config YAML') { |dbconf| options[:dbconf] = dbconf }
+  opts.on('--schema SCHEMA', 'Database schema from `rake db:schema:dump`') { |schema| options[:schema] = schema }
 end.parse!
 
 if options[:transformers]
-  begin require File.expand_path("./#{options[:transformers]}", Dir.pwd)
+  begin require File.expand_path(options[:transformers], Dir.pwd)
   rescue LoadError; puts $!
   end
 end
@@ -32,5 +33,5 @@ rescue StandardError
   abort "Couldn't connect to #{options[:dbconf]}[#{db}]: #{$!}"
 end
 
-DatabaseExporter.export DatabaseExporter::Source.connection, ActiveRecord::Base.connection, tables: options[:tables], exclude: options[:exclude_tables]
+DatabaseExporter.export DatabaseExporter::Source.connection, ActiveRecord::Base.connection, tables: options[:tables], exclude: options[:exclude_tables], schema: options[:schema]
 
