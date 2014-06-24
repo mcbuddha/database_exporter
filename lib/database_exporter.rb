@@ -40,19 +40,20 @@ module DatabaseExporter
         puts 'Reading schema SQL...'
         schema_src = IO.read File.expand_path(schema, Dir.pwd)
         ActiveRecord::Migration.suppress_messages { ActiveRecord::Base.connection.exec_query schema_src }
+      end
     end
 
     def export src, dest, opts={}
       duplicate_schema opts[:schema]
       tables = (opts[:tables] || src.tables.collect(&:to_s)) - (opts[:exclude] || [])
-      transformers = read_comments src, tables
+      transformers = read_comments dest, tables
 
-      max_col_name_len = transformers.map{|k,v|v.keys}.flatten.map(&:length).sort.last
+      max_tbl_name_len = transformers.keys.map(&:length).sort.last || 0
       tables.with_progress('Exporting').each do |table|
         result = src.exec_query "SELECT * FROM #{table}"
         cols = result.columns.join ','
         dest.transaction do
-          result.rows.with_progress(table.rjust max_col_name_len).each_with_index do |src_row, row_i|
+          result.rows.with_progress(table.rjust max_tbl_name_len).each_with_index do |src_row, row_i|
             values = result.columns.each_with_index.map do |col, col_i|
               transformer = transformers[table.to_sym][col.to_sym]
               dest.quote transformer ? transformer.(row_i, src_row[col_i]) : src_row[col_i]
