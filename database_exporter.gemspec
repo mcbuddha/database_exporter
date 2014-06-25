@@ -21,7 +21,7 @@ Gem::Specification.new do |spec|
   spec.add_development_dependency 'pg', '~> 0.17'
 
   spec.add_runtime_dependency 'activerecord', '~> 3'
-  spec.add_runtime_dependency 'activerecord_comments', '~> 0'
+  spec.add_runtime_dependency 'activerecord-comments', '~> 0'
   spec.add_runtime_dependency 'progress', '~> 3'
   spec.add_runtime_dependency 'iconv', '~> 1'
 end

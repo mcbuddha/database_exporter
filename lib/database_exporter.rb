@@ -1,6 +1,5 @@
 require 'database_exporter/version'
-
-require 'activerecord_comments'
+require 'active_record/comments'
 require 'progress'
 
 module DatabaseExporter
