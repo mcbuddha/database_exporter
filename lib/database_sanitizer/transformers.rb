@@ -1,4 +1,4 @@
-module DatabaseExporter
+module DatabaseSanitizer
   Transformers = {
     'email' => ->(i, rec) { "email#{i.to_s.rjust(5, ?0)}@#{rec.split(?@)[1]}"},
     'wipe' => proc { nil },

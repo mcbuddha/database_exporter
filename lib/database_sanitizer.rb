@@ -1,15 +1,15 @@
-require 'database_exporter/version'
+require 'database_sanitizer/version'
 require 'active_record/comments'
 require 'progress'
 
-module DatabaseExporter
+module DatabaseSanitizer
   class Source < ActiveRecord::Base
   end
 end
 
-require 'database_exporter/transformers'
+require 'database_sanitizer/transformers'
 
-module DatabaseExporter
+module DatabaseSanitizer
   class << self
     def extract_transformer comment; comment ? comment[/sanitize: ?(\w+)/,1] : nil; end
 

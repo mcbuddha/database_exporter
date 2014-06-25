@@ -1,14 +1,14 @@
 # coding: utf-8
-require File.expand_path('../lib/database_exporter/version', __FILE__)
+require File.expand_path('../lib/database_sanitizer/version', __FILE__)
 
 Gem::Specification.new do |spec|
-  spec.name          = 'database_exporter'
-  spec.version       = DatabaseExporter::VERSION
+  spec.name          = 'database_sanitizer'
+  spec.version       = DatabaseSanitizer::VERSION
   spec.authors       = ['Marton Somogyi']
   spec.email         = ['msomogyi@whitepages.com']
   spec.summary       = %q{Export your SQL database}
   spec.description   = %q{Duplicate a databse with sanitization options using SQL comments}
-  spec.homepage      = 'https://github.com/mcbuddha/database_exporter'
+  spec.homepage      = 'https://github.com/mcbuddha/database_sanitizer'
   spec.license       = 'MIT'
 
   spec.files         = `git ls-files -z`.split("\x0")

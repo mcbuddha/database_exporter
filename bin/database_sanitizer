@@ -2,7 +2,7 @@
 require 'yaml'
 require 'optparse'
 
-require 'database_exporter'
+require 'database_sanitizer'
 
 ENV['SOURCE'] ||= 'postgres'
 ENV['TARGET'] ||= "#{ENV['SOURCE']}_sanitized"
@@ -26,12 +26,12 @@ DBCONF = YAML::load IO.read options[:dbconf] rescue abort "Error reading #{optio
 
 begin
   db = ENV['SOURCE']
-  DatabaseExporter::Source.establish_connection(DBCONF[db]).connection
+  DatabaseSanitizer::Source.establish_connection(DBCONF[db]).connection
   db = ENV['TARGET']
   ActiveRecord::Base.establish_connection(DBCONF[db]).connection
 rescue StandardError
   abort "Couldn't connect to #{options[:dbconf]}[#{db}]: #{$!}"
 end
 
-DatabaseExporter.export DatabaseExporter::Source.connection, ActiveRecord::Base.connection, tables: options[:tables], exclude: options[:exclude_tables], schema: options[:schema]
+DatabaseSanitizer.export DatabaseSanitizer::Source.connection, ActiveRecord::Base.connection, tables: options[:tables], exclude: options[:exclude_tables], schema: options[:schema]
 
