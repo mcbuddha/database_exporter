@@ -3,6 +3,7 @@ require 'active_record/comments'
 require 'progress'
 
 module DatabaseSanitizer
+  CHUNK_SIZE = 500
   class Source < ActiveRecord::Base
   end
 end
@@ -42,22 +43,35 @@ module DatabaseSanitizer
       end
     end
 
+    def get_chunks table
+      conn = Source.connection
+      query = "SELECT count(*) FROM #{conn.quote_table_name table}"
+      pg_query = "SELECT reltuples FROM pg_class WHERE relname=#{conn.quote table}"
+      res = conn.adapter_name == 'PostgreSQL' ? (conn.exec_query(pg_query) rescue false) : false
+      res ||= conn.exec_query(query)
+      res.rows[0][0].to_i % CHUNK_SIZE + 1
+    end
+
     def export src, dest, opts={}
       duplicate_schema opts[:schema]
       tables = (opts[:tables] || src.tables.collect(&:to_s)) - (opts[:exclude] || [])
       transformers = read_comments dest, tables
-
       max_tbl_name_len = transformers.keys.map(&:length).sort.last || 0
+
       tables.with_progress('Exporting').each do |table|
-        result = src.exec_query "SELECT * FROM #{table}"
-        cols = result.columns.join ','
-        dest.transaction do
-          result.rows.with_progress(table.rjust max_tbl_name_len).each_with_index do |src_row, row_i|
-            values = result.columns.each_with_index.map do |col, col_i|
-              transformer = transformers[table.to_sym][col.to_sym]
-              dest.quote transformer ? transformer.(row_i, src_row[col_i]) : src_row[col_i]
+        q_table = dest.quote_table_name table
+        query = "SELECT * FROM #{q_table} LIMIT #{CHUNK_SIZE} OFFSET "
+        get_chunks(table).times_with_progress(table.rjust max_tbl_name_len) do |chunk_i|
+          result = src.exec_query query + (chunk_i*CHUNK_SIZE).to_s
+          cols = result.columns.map { |col| dest.quote_column_name col }.join ','
+          dest.transaction do
+            result.rows.with_progress.each_with_index do |src_row, row_i|
+              values = result.columns.each_with_index.map do |col, col_i|
+                transformer = transformers[table.to_sym][col.to_sym]
+                dest.quote transformer ? transformer.(row_i, src_row[col_i]) : src_row[col_i]
+              end
+              dest.insert_sql "INSERT INTO #{q_table} (#{cols}) VALUES (#{values.join ','})"
             end
-            dest.insert_sql "INSERT INTO #{dest.quote_table_name table} (#{cols}) VALUES (#{values.join ','})"
           end
         end
       end
