@@ -3,7 +3,7 @@ $: << File.expand_path('../lib', __FILE__)
 require 'yaml'
 require 'pry'
 
-require 'database_exporter'
+require 'database_sanitizer'
 
 DBCONF = YAML::load(IO.read(File.expand_path('../config/database.yml', __FILE__)))
 ENV['DB'] ||= 'postgres'

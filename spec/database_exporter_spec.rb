@@ -1,6 +1,6 @@
 require 'spec_helper'
 
-describe DatabaseExporter do
+describe DatabaseSanitizer do
   describe '#extract_transformer', nodb: true do
     context 'should return nil for no transformer' do
       ['no tag comment', nil, '', 'sanitize no tag'].each do |comment|
