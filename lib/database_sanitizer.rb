@@ -48,7 +48,10 @@ module DatabaseSanitizer
       query = "SELECT count(*) FROM #{conn.quote_table_name table}"
       pg_query = "SELECT reltuples::bigint FROM pg_class WHERE relname=#{conn.quote table}"
       res = conn.adapter_name == 'PostgreSQL' ? (conn.exec_query(pg_query) rescue false) : false
-      res ||= conn.exec_query(query)
+      unless res
+        puts 'Counting...'
+        conn.exec_query(query)
+      end
       res.rows[0][0].to_i / CHUNK_SIZE + 1
     end
 
