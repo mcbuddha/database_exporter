@@ -62,13 +62,14 @@ module DatabaseSanitizer
         q_table = dest.quote_table_name table
         query = "SELECT * FROM #{q_table} LIMIT #{CHUNK_SIZE} OFFSET "
         get_chunks(table).times_with_progress(table.rjust max_tbl_name_len) do |chunk_i|
-          result = src.exec_query query + (chunk_i*CHUNK_SIZE).to_s
+          offset = chunk_i * CHUNK_SIZE
+          result = src.exec_query query + offset.to_s
           cols = result.columns.map { |col| dest.quote_column_name col }.join ','
           dest.transaction do
             result.rows.with_progress('batch').each_with_index do |src_row, row_i|
               values = result.columns.each_with_index.map do |col, col_i|
                 transformer = transformers[table.to_sym][col.to_sym]
-                dest.quote transformer ? transformer.(row_i, src_row[col_i]) : src_row[col_i]
+                dest.quote transformer ? transformer.(offset + row_i, src_row[col_i]) : src_row[col_i]
               end
               dest.insert_sql "INSERT INTO #{q_table} (#{cols}) VALUES (#{values.join ','})"
             end
