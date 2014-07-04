@@ -49,7 +49,7 @@ module DatabaseSanitizer
       pg_query = "SELECT reltuples FROM pg_class WHERE relname=#{conn.quote table}"
       res = conn.adapter_name == 'PostgreSQL' ? (conn.exec_query(pg_query) rescue false) : false
       res ||= conn.exec_query(query)
-      res.rows[0][0].to_i % CHUNK_SIZE + 1
+      res.rows[0][0].to_i / CHUNK_SIZE + 1
     end
 
     def export src, dest, opts={}
@@ -65,7 +65,7 @@ module DatabaseSanitizer
           result = src.exec_query query + (chunk_i*CHUNK_SIZE).to_s
           cols = result.columns.map { |col| dest.quote_column_name col }.join ','
           dest.transaction do
-            result.rows.with_progress.each_with_index do |src_row, row_i|
+            result.rows.with_progress('batch').each_with_index do |src_row, row_i|
               values = result.columns.each_with_index.map do |col, col_i|
                 transformer = transformers[table.to_sym][col.to_sym]
                 dest.quote transformer ? transformer.(row_i, src_row[col_i]) : src_row[col_i]
