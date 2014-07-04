@@ -3,7 +3,7 @@ require 'active_record/comments'
 require 'progress'
 
 module DatabaseSanitizer
-  CHUNK_SIZE = 500
+  CHUNK_SIZE = (ENV['CHUNK_SIZE'] || "1000").to_i
   class Source < ActiveRecord::Base
   end
 end
