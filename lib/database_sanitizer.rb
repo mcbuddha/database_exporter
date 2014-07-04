@@ -46,7 +46,7 @@ module DatabaseSanitizer
     def get_chunks table
       conn = Source.connection
       query = "SELECT count(*) FROM #{conn.quote_table_name table}"
-      pg_query = "SELECT reltuples FROM pg_class WHERE relname=#{conn.quote table}"
+      pg_query = "SELECT reltuples::bigint FROM pg_class WHERE relname=#{conn.quote table}"
       res = conn.adapter_name == 'PostgreSQL' ? (conn.exec_query(pg_query) rescue false) : false
       res ||= conn.exec_query(query)
       res.rows[0][0].to_i / CHUNK_SIZE + 1
