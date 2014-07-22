@@ -64,7 +64,7 @@ module DatabaseSanitizer
       tables.with_progress('Exporting').each do |table|
         q_table = dest.quote_table_name table
         s_table = table.to_sym
-        sel_query = "SELECT * FROM #{q_table} LIMIT #{CHUNK_SIZE} OFFSET "
+        sel_query = "SELECT * FROM #{q_table} #{order_clause_for_table(s_table)} LIMIT #{CHUNK_SIZE} OFFSET "
         get_chunks(table).times_with_progress(table.rjust max_tbl_name_len) do |chunk_i|
           offset = chunk_i * CHUNK_SIZE
           result = src.exec_query sel_query + offset.to_s
@@ -81,6 +81,10 @@ module DatabaseSanitizer
           dest.exec_query ins_query.string
         end
       end
+    end
+    
+    def order_clause_for_table s_table
+      "ORDER BY id" if ActiveRecord::Base.connection.column_exists?(s_table, :id)
     end
   end
 end
