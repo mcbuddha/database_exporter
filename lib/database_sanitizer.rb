@@ -14,6 +14,8 @@ module DatabaseSanitizer
   class << self
     def extract_transformer comment; comment ? comment[/sanitize: ?(\w+)/,1] : nil; end
 
+    def extract_order comment; comment ? comment[/order_by: ?(\w+)/,1] : nil; end
+
     def read_comments conn, tables
       tables.inject({}) do |transformers, table|
         transformers[table.to_sym] = conn.retrieve_column_comments(table.to_sym).inject({}) do |table_transformers, column|
@@ -64,27 +66,42 @@ module DatabaseSanitizer
       tables.with_progress('Exporting').each do |table|
         q_table = dest.quote_table_name table
         s_table = table.to_sym
-        sel_query = "SELECT * FROM #{q_table} #{order_clause_for_table(s_table)} LIMIT #{CHUNK_SIZE} OFFSET "
+
         get_chunks(table).times_with_progress(table.rjust max_tbl_name_len) do |chunk_i|
-          offset = chunk_i * CHUNK_SIZE
-          result = src.exec_query sel_query + offset.to_s
-          cols = result.columns.map { |col| dest.quote_column_name col }.join ','
-          ins_query_part = "INSERT INTO #{q_table} (#{cols}) VALUES ("
-          ins_query = StringIO.new
-          result.rows.each_with_index do |src_row, row_i|
-            values = result.columns.each_with_index.map do |col, col_i|
-              transformer = transformers[s_table][col.to_sym]
-              dest.quote transformer ? transformer.(offset + row_i, src_row[col_i]) : src_row[col_i]
-            end
-            ins_query << ins_query_part << values.join(',') << '); '
-          end
-          dest.exec_query ins_query.string
+          result = src.exec_query select_query q_table, s_table, (chunk_i * CHUNK_SIZE)
+          dest.exec_query insert_query q_table, s_table, transformers, result
         end
       end
     end
+
+    def insert_query q_table, s_table, transformers, result
+      cols = result.columns.map { |col| dest.quote_column_name col }.join ','
+      ins_query_part = "INSERT INTO #{q_table} (#{cols}) VALUES ("
+      ins_query = StringIO.new
+      result.rows.each_with_index do |src_row, row_i|
+        values = result.columns.each_with_index.map do |col, col_i|
+          transformer = transformers[s_table][col.to_sym]
+          dest.quote transformer ? transformer.(offset + row_i, src_row[col_i]) : src_row[col_i]
+        end
+        ins_query << ins_query_part << values.join(',') << '); '
+      end
+    end
+
+    def select_query q_table, s_table, offset
+      "SELECT * FROM #{q_table} #{order_clause_for_table(s_table)} LIMIT #{CHUNK_SIZE} OFFSET #{offset}"
+    end
     
-    def order_clause_for_table s_table
-      "ORDER BY id" if ActiveRecord::Base.connection.column_exists?(s_table, :id)
+    def order_clause s_table
+      conn = Source.connection
+      order_sql = 'ORDER BY '
+      order_by = extract_order conn.retrieve_table_comment s_table
+      if order_by
+        order_sql + conn.quote_table_name(order_by)
+      elsif conn.column_exists? s_table, :id
+        order_sql + 'id'
+      else
+        nil
+      end
     end
   end
 end

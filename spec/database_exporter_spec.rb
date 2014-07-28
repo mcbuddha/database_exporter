@@ -21,6 +21,26 @@ describe DatabaseSanitizer do
     end
   end
 
+  describe '#extract_order', nodb: true do
+    context 'should return nil for no order' do
+      ['no order comment', nil, '', 'order_by no tag'].each do |comment|
+        it { expect(described_class.extract_order comment).to be_nil }
+      end
+    end
+
+    context 'should return order' do
+      [
+       'order_by: test_col',
+       'random order_by: test_col comment',
+       'some order_by: test_col, order_by: other',
+       'without order_by:test_col space',
+       'trailing order_by: test_col'
+      ].each do |comment|
+        it { expect(described_class.extract_order comment).to eq('test_col') }
+      end
+    end
+  end
+
   describe '#read_comments' do
     before do
       ActiveRecord::Migration.suppress_messages do
@@ -54,6 +74,36 @@ describe DatabaseSanitizer do
       it 'should abort' do
         expect(lambda {described_class.read_comments ActiveRecord::Base.connection, [:test]}).to raise_error(SystemExit)
       end
+    end
+  end
+
+  describe '#order_clause' do
+    context 'no order comment' do
+      context 'and no id' do
+        before do
+          ActiveRecord::Migration.suppress_messages do
+            ActiveRecord::Schema.define { remove_column :test, :id }
+          end
+        end
+
+        it 'should not order' do
+          expect(described_class.order_clause :test).to be_nil
+        end
+      end
+
+      context 'and id' do
+        it 'should order by id' do
+          expect(described_class.order_clause :test).to end_with('id')
+        end
+      end
+    end
+  end
+
+  context 'order comment' do
+    before { ActiveRecord::Base.connection.set_table_comment :test, 'order_by: field2' }
+
+    it 'should order by comment' do
+      expect(described_class.order_clause :test).to end_with(ActiveRecord::Base.connection.quote_table_name 'field2')
     end
   end
 end
