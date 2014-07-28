@@ -6,6 +6,8 @@ module DatabaseSanitizer
   CHUNK_SIZE = (ENV['CHUNK_SIZE'] || "1000").to_i
   class Source < ActiveRecord::Base
   end
+  class Destination < ActiveRecord::Base
+  end
 end
 
 require 'database_sanitizer/transformers'
@@ -16,9 +18,9 @@ module DatabaseSanitizer
 
     def extract_order comment; comment ? comment[/order_by: ?(\w+)/,1] : nil; end
 
-    def read_comments conn, tables
+    def read_comments tables
       tables.inject({}) do |transformers, table|
-        transformers[table.to_sym] = conn.retrieve_column_comments(table.to_sym).inject({}) do |table_transformers, column|
+        transformers[table.to_sym] = Source.connection.retrieve_column_comments(table.to_sym).inject({}) do |table_transformers, column|
           transformer_key = extract_transformer column[1]
           unless transformer_key.nil? || Transformers.include?(transformer_key)
             abort "Transformer '#{transformer_key}' not found (#{table}.#{column[0]})"
@@ -41,12 +43,11 @@ module DatabaseSanitizer
       else
         puts 'Reading schema SQL...'
         schema_src = IO.read File.expand_path(schema, Dir.pwd)
-        ActiveRecord::Migration.suppress_messages { ActiveRecord::Base.connection.exec_query schema_src }
+        ActiveRecord::Migration.suppress_messages { Destination.connection.execute schema_src }
       end
     end
 
-    def get_chunks table
-      conn = Source.connection
+    def get_chunks conn, table
       query = "SELECT count(*) FROM #{conn.quote_table_name table}"
       pg_query = "SELECT reltuples::bigint FROM pg_class WHERE relname=#{conn.quote table}"
       res = conn.adapter_name == 'PostgreSQL' ? (conn.exec_query(pg_query) rescue false) : false
@@ -57,17 +58,19 @@ module DatabaseSanitizer
       res.rows[0][0].to_i / CHUNK_SIZE + 1
     end
 
-    def export src, dest, opts={}
+    def export opts={}
+      src = Source.connection
+      dest = Destination.connection
       duplicate_schema opts[:schema]
       tables = (opts[:tables] || src.tables.collect(&:to_s)) - (opts[:exclude] || [])
-      transformers = read_comments dest, tables
+      transformers = read_comments tables
       max_tbl_name_len = transformers.keys.map(&:length).sort.last || 0
 
       tables.with_progress('Exporting').each do |table|
         q_table = dest.quote_table_name table
         s_table = table.to_sym
 
-        get_chunks(table).times_with_progress(table.rjust max_tbl_name_len) do |chunk_i|
+        get_chunks(src, table).times_with_progress(table.rjust max_tbl_name_len) do |chunk_i|
           result = src.exec_query select_query q_table, s_table, (chunk_i * CHUNK_SIZE)
           dest.exec_query insert_query q_table, s_table, transformers, result
         end
@@ -75,6 +78,7 @@ module DatabaseSanitizer
     end
 
     def insert_query q_table, s_table, transformers, result
+      dest = Destination.connection
       cols = result.columns.map { |col| dest.quote_column_name col }.join ','
       ins_query_part = "INSERT INTO #{q_table} (#{cols}) VALUES ("
       ins_query = StringIO.new
@@ -85,19 +89,20 @@ module DatabaseSanitizer
         end
         ins_query << ins_query_part << values.join(',') << '); '
       end
+      ins_query.string
     end
 
     def select_query q_table, s_table, offset
-      "SELECT * FROM #{q_table} #{order_clause_for_table(s_table)} LIMIT #{CHUNK_SIZE} OFFSET #{offset}"
+      "SELECT * FROM #{q_table} #{order_clause s_table} LIMIT #{CHUNK_SIZE} OFFSET #{offset}"
     end
     
     def order_clause s_table
-      conn = Source.connection
       order_sql = 'ORDER BY '
-      order_by = extract_order conn.retrieve_table_comment s_table
+      src = Source.connection
+      order_by = extract_order src.retrieve_table_comment s_table
       if order_by
-        order_sql + conn.quote_table_name(order_by)
-      elsif conn.column_exists? s_table, :id
+        order_sql + src.quote_table_name(order_by)
+      elsif src.column_exists? s_table, :id
         order_sql + 'id'
       else
         nil

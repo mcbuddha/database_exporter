@@ -43,25 +43,23 @@ describe DatabaseSanitizer do
 
   describe '#read_comments' do
     before do
-      ActiveRecord::Migration.suppress_messages do
-        ActiveRecord::Schema.define do
-          change_table :test do |t|
-            t.string :field3
-            t.string :field4
-          end
-        end
-      end
+      DatabaseSanitizer::Source.connection.execute <<-SQL
+ALTER TABLE test
+  ADD COLUMN field3 character varying(255),
+  ADD COLUMN field4 character varying(255)
+;
+SQL
       comments = {
         field1: 'comment no tag',
         field2: nil,
         field3: 'comment sanitize: name',
         field4: 'sanitize:email'
-      }.each { |col, com| ActiveRecord::Base.connection.set_column_comment :test, col, com }
+      }.each { |col, com| DatabaseSanitizer::Source.connection.set_column_comment :test, col, com }
     end
 
     context 'some defined' do
       it 'should get transformers' do
-        transformers = described_class.read_comments(ActiveRecord::Base.connection, [:test])[:test]
+        transformers = described_class.read_comments([:test])[:test]
         expect(transformers[:field1]).to be_nil
         expect(transformers[:field2]).to be_nil
         expect(transformers[:field3]).to be_kind_of(Proc)
@@ -70,10 +68,17 @@ describe DatabaseSanitizer do
     end
 
     context 'some undefined' do
-      before { ActiveRecord::Base.connection.set_column_comment :test, :field2, 'sanitize:undef' }
+      before { DatabaseSanitizer::Source.connection.set_column_comment :test, :field2, 'sanitize:undef' }
       it 'should abort' do
-        expect(lambda {described_class.read_comments ActiveRecord::Base.connection, [:test]}).to raise_error(SystemExit)
+        expect(lambda {described_class.read_comments [:test]}).to raise_error(SystemExit)
       end
+    end
+  end
+
+  describe '#insert_query' do
+    context 'empty db' do
+      let(:result) { Struct.new(:rows, :columns).new([], []) }
+      it { expect(described_class.insert_query '"test"', :test, {}, result).to eq('') }
     end
   end
 
@@ -81,9 +86,7 @@ describe DatabaseSanitizer do
     context 'no order comment' do
       context 'and no id' do
         before do
-          ActiveRecord::Migration.suppress_messages do
-            ActiveRecord::Schema.define { remove_column :test, :id }
-          end
+          DatabaseSanitizer::Source.connection.execute 'ALTER TABLE test DROP COLUMN IF EXISTS id;'
         end
 
         it 'should not order' do
@@ -100,10 +103,10 @@ describe DatabaseSanitizer do
   end
 
   context 'order comment' do
-    before { ActiveRecord::Base.connection.set_table_comment :test, 'order_by: field2' }
+    before { DatabaseSanitizer::Source.connection.set_table_comment :test, 'order_by: field2' }
 
     it 'should order by comment' do
-      expect(described_class.order_clause :test).to end_with(ActiveRecord::Base.connection.quote_table_name 'field2')
+      expect(described_class.order_clause :test).to end_with(DatabaseSanitizer::Source.connection.quote_table_name 'field2')
     end
   end
 end

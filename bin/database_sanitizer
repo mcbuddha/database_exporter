@@ -28,10 +28,10 @@ begin
   db = ENV['SOURCE']
   DatabaseSanitizer::Source.establish_connection(DBCONF[db]).connection
   db = ENV['TARGET']
-  ActiveRecord::Base.establish_connection(DBCONF[db]).connection
+  DatabaseSanitizer::Destination.establish_connection(DBCONF[db]).connection
 rescue StandardError
   abort "Couldn't connect to #{options[:dbconf]}[#{db}]: #{$!}"
 end
 
-DatabaseSanitizer.export DatabaseSanitizer::Source.connection, ActiveRecord::Base.connection, tables: options[:tables], exclude: options[:exclude_tables], schema: options[:schema]
+DatabaseSanitizer.export tables: options[:tables], exclude: options[:exclude_tables], schema: options[:schema]
 
