@@ -78,7 +78,7 @@ SQL
   describe '#insert_query' do
     context 'empty db' do
       let(:result) { Struct.new(:rows, :columns).new([], []) }
-      it { expect(described_class.insert_query '"test"', :test, {}, result).to eq('') }
+      it { expect(described_class.insert_query '"test"', :test, {}, result, 0).to eq('') }
     end
   end
 

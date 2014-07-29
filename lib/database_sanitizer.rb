@@ -71,13 +71,14 @@ module DatabaseSanitizer
         s_table = table.to_sym
 
         get_chunks(src, table).times_with_progress(table.rjust max_tbl_name_len) do |chunk_i|
-          result = src.exec_query select_query q_table, s_table, (chunk_i * CHUNK_SIZE)
-          dest.exec_query insert_query q_table, s_table, transformers, result
+          offset = chunk_i * CHUNK_SIZE
+          result = src.exec_query select_query q_table, s_table, offset
+          dest.execute insert_query q_table, s_table, transformers, result, offset
         end
       end
     end
 
-    def insert_query q_table, s_table, transformers, result
+    def insert_query q_table, s_table, transformers, result, offset
       dest = Destination.connection
       cols = result.columns.map { |col| dest.quote_column_name col }.join ','
       ins_query_part = "INSERT INTO #{q_table} (#{cols}) VALUES ("
