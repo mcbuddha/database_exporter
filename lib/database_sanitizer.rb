@@ -69,11 +69,15 @@ module DatabaseSanitizer
       tables.with_progress('Exporting').each do |table|
         q_table = dest.quote_table_name table
         s_table = table.to_sym
+        order_column = order_column_for s_table
+        last_value = nil
 
         get_chunks(src, table).times_with_progress(table.rjust max_tbl_name_len) do |chunk_i|
           offset = chunk_i * CHUNK_SIZE
-          result = src.exec_query select_query q_table, s_table, offset
+          result = src.exec_query select_query q_table, order_column, last_value, offset
           dest.execute insert_query q_table, s_table, transformers, result, offset
+
+          last_value = result.last[order_column] if result.any?
         end
       end
     end
@@ -93,18 +97,22 @@ module DatabaseSanitizer
       ins_query.string
     end
 
-    def select_query q_table, s_table, offset
-      "SELECT * FROM #{q_table} #{order_clause s_table} LIMIT #{CHUNK_SIZE} OFFSET #{offset}"
+    def select_query q_table, order_column, last_value, offset
+      query = "SELECT * FROM #{q_table} "
+      query << "WHERE #{order_column} > #{last_value} " if last_value.present?
+      query << "ORDER BY #{order_column} " if order_column.present?
+      query << "LIMIT #{CHUNK_SIZE} "
+      query << "OFFSET #{offset} " unless order_column.present?
+      query
     end
-    
-    def order_clause s_table
-      order_sql = 'ORDER BY '
+
+    def order_column_for s_table
       src = Source.connection
       order_by = extract_order src.retrieve_table_comment s_table
       if order_by
-        order_sql + src.quote_table_name(order_by)
+        src.quote_table_name(order_by)
       elsif src.column_exists? s_table, :id
-        order_sql + 'id'
+        'id'
       else
         nil
       end

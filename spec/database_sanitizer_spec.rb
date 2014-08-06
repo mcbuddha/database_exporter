@@ -82,7 +82,7 @@ SQL
     end
   end
 
-  describe '#order_clause' do
+  describe '#order_column_for' do
     context 'no order comment' do
       context 'and no id' do
         before do
@@ -90,13 +90,13 @@ SQL
         end
 
         it 'should not order' do
-          expect(described_class.order_clause :test).to be_nil
+          expect(described_class.order_column_for :test).to be_nil
         end
       end
 
       context 'and id' do
         it 'should order by id' do
-          expect(described_class.order_clause :test).to end_with('id')
+          expect(described_class.order_column_for :test).to eq('id')
         end
       end
     end
@@ -106,7 +106,7 @@ SQL
     before { DatabaseSanitizer::Source.connection.set_table_comment :test, 'order_by: field2' }
 
     it 'should order by comment' do
-      expect(described_class.order_clause :test).to end_with(DatabaseSanitizer::Source.connection.quote_table_name 'field2')
+      expect(described_class.order_column_for :test).to eq(DatabaseSanitizer::Source.connection.quote_table_name 'field2')
     end
   end
 end
