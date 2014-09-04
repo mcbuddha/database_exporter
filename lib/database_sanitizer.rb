@@ -75,13 +75,21 @@ module DatabaseSanitizer
       order_column = order_column_for s_table
       last_value = nil
 
-      get_chunks(Source.connection, table).times_with_progress(table.rjust max_tbl_name_len) do |chunk_i|
-        offset = chunk_i * CHUNK_SIZE
-        result = Source.connection.exec_query select_query q_table, order_column, last_value, offset
-        Destination.connection.execute insert_query q_table, s_table, transformers, result, offset
+      suspend_triggers table do
+        get_chunks(Source.connection, table).times_with_progress(table.rjust max_tbl_name_len) do |chunk_i|
+          offset = chunk_i * CHUNK_SIZE
+          result = Source.connection.exec_query select_query q_table, order_column, last_value, offset
+          Destination.connection.execute insert_query q_table, s_table, transformers, result, offset
 
-        last_value = result.last[order_column] if result.any?
+          last_value = result.last[order_column] if result.any?
+        end
       end
+    end
+
+    def suspend_triggers table
+      Destination.connection.execute "ALTER TABLE #{table} DISABLE TRIGGER ALL"
+      yield
+      Destination.connection.execute "ALTER TABLE #{table} ENABLE TRIGGER ALL"
     end
 
     def insert_query q_table, s_table, transformers, result, offset
