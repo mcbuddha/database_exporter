@@ -59,26 +59,28 @@ module DatabaseSanitizer
     end
 
     def export opts={}
-      src = Source.connection
-      dest = Destination.connection
       duplicate_schema opts[:schema]
-      tables = (opts[:tables] || src.tables.collect(&:to_s)) - (opts[:exclude] || [])
+      tables = (opts[:tables] || Source.connection.tables.collect(&:to_s)) - (opts[:exclude] || [])
       transformers = read_comments tables
       max_tbl_name_len = transformers.keys.map(&:length).sort.last || 0
 
       tables.with_progress('Exporting').each do |table|
-        q_table = dest.quote_table_name table
-        s_table = table.to_sym
-        order_column = order_column_for s_table
-        last_value = nil
+        export_table table, transformers, max_tbl_name_len
+      end
+    end
 
-        get_chunks(src, table).times_with_progress(table.rjust max_tbl_name_len) do |chunk_i|
-          offset = chunk_i * CHUNK_SIZE
-          result = src.exec_query select_query q_table, order_column, last_value, offset
-          dest.execute insert_query q_table, s_table, transformers, result, offset
+    def export_table table, transformers, max_tbl_name_len
+      q_table = Destination.connection.quote_table_name table
+      s_table = table.to_sym
+      order_column = order_column_for s_table
+      last_value = nil
 
-          last_value = result.last[order_column] if result.any?
-        end
+      get_chunks(Source.connection, table).times_with_progress(table.rjust max_tbl_name_len) do |chunk_i|
+        offset = chunk_i * CHUNK_SIZE
+        result = Source.connection.exec_query select_query q_table, order_column, last_value, offset
+        Destination.connection.execute insert_query q_table, s_table, transformers, result, offset
+
+        last_value = result.last[order_column] if result.any?
       end
     end
 
