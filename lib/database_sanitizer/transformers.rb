@@ -1,6 +1,6 @@
 module DatabaseSanitizer
   Transformers = {
-    'email' => ->(i, rec) { "email#{i.to_s.rjust(5, ?0)}@#{rec.split(?@)[1]}"},
+    'email' => ->(i, rec) { rec.nil? ? rec : "email#{i.to_s.rjust(5, ?0)}@#{rec.split(?@)[1]}"  },
     'wipe' => proc { nil },
     'zero' => proc { 0 },
     'empty_string' => proc { '' },
