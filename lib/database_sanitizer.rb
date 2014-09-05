@@ -132,14 +132,14 @@ module DatabaseSanitizer
 
     def update_sequences
       sequences = Source.connection.exec_query <<-SQL.strip_heredoc
-        SELECT s.relname, a.attname, t.relname
-        FROM pg_class s
-          JOIN pg_depend d ON d.objid = s.oid
-          JOIN pg_class t ON d.objid = s.oid AND d.refobjid = t.oid
-          JOIN pg_attribute a ON (d.refobjid, d.refobjsubid) = (a.attrelid, a.attnum)
-          JOIN pg_namespace n ON n.oid = s.relnamespace
-        WHERE s.relkind     = 'S'
-          AND n.nspname     = 'public'
+SELECT s.relname, a.attname, t.relname
+FROM pg_class s
+  JOIN pg_depend d ON d.objid = s.oid
+  JOIN pg_class t ON d.objid = s.oid AND d.refobjid = t.oid
+  JOIN pg_attribute a ON (d.refobjid, d.refobjsubid) = (a.attrelid, a.attnum)
+  JOIN pg_namespace n ON n.oid = s.relnamespace
+WHERE s.relkind     = 'S'
+  AND n.nspname     = 'public'
       SQL
 
       sequences.rows.each do |row|
