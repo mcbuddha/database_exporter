@@ -67,6 +67,8 @@ module DatabaseSanitizer
       tables.with_progress('Exporting').each do |table|
         export_table table, transformers, max_tbl_name_len
       end
+
+      update_sequences
     end
 
     def export_table table, transformers, max_tbl_name_len
@@ -84,12 +86,6 @@ module DatabaseSanitizer
           last_value = result.last[order_column] if result.any?
         end
       end
-    end
-
-    def suspend_triggers table
-      Destination.connection.execute "ALTER TABLE #{table} DISABLE TRIGGER ALL"
-      yield
-      Destination.connection.execute "ALTER TABLE #{table} ENABLE TRIGGER ALL"
     end
 
     def insert_query q_table, s_table, transformers, result, offset
@@ -125,6 +121,29 @@ module DatabaseSanitizer
         'id'
       else
         nil
+      end
+    end
+
+    def suspend_triggers table
+      Destination.connection.execute "ALTER TABLE #{table} DISABLE TRIGGER ALL"
+      yield
+      Destination.connection.execute "ALTER TABLE #{table} ENABLE TRIGGER ALL"
+    end
+
+    def update_sequences
+      sequences = Source.connection.exec_query <<-SQL.strip_heredoc
+        SELECT s.relname, a.attname, t.relname
+        FROM pg_class s
+          JOIN pg_depend d ON d.objid = s.oid
+          JOIN pg_class t ON d.objid = s.oid AND d.refobjid = t.oid
+          JOIN pg_attribute a ON (d.refobjid, d.refobjsubid) = (a.attrelid, a.attnum)
+          JOIN pg_namespace n ON n.oid = s.relnamespace
+        WHERE s.relkind     = 'S'
+          AND n.nspname     = 'public'
+      SQL
+
+      sequences.rows.each do |row|
+        Destination.connection.execute "SELECT setval('#{row[0]}', (SELECT MAX(#{row[1]}) FROM #{row[2]}))"
       end
     end
   end
