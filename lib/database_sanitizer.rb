@@ -59,23 +59,29 @@ module DatabaseSanitizer
     end
 
     def export opts={}
-      src = Source.connection
-      dest = Destination.connection
       duplicate_schema opts[:schema]
-      tables = (opts[:tables] || src.tables.collect(&:to_s)) - (opts[:exclude] || [])
+      tables = (opts[:tables] || Source.connection.tables.collect(&:to_s)) - (opts[:exclude] || [])
       transformers = read_comments tables
       max_tbl_name_len = transformers.keys.map(&:length).sort.last || 0
 
       tables.with_progress('Exporting').each do |table|
-        q_table = dest.quote_table_name table
-        s_table = table.to_sym
-        order_column = order_column_for s_table
-        last_value = nil
+        export_table table, transformers, max_tbl_name_len
+      end
 
-        get_chunks(src, table).times_with_progress(table.rjust max_tbl_name_len) do |chunk_i|
+      update_sequences
+    end
+
+    def export_table table, transformers, max_tbl_name_len
+      q_table = Destination.connection.quote_table_name table
+      s_table = table.to_sym
+      order_column = order_column_for s_table
+      last_value = nil
+
+      suspend_triggers table do
+        get_chunks(Source.connection, table).times_with_progress(table.rjust max_tbl_name_len) do |chunk_i|
           offset = chunk_i * CHUNK_SIZE
-          result = src.exec_query select_query q_table, order_column, last_value, offset
-          dest.execute insert_query q_table, s_table, transformers, result, offset
+          result = Source.connection.exec_query select_query q_table, order_column, last_value, offset
+          Destination.connection.execute insert_query q_table, s_table, transformers, result, offset
 
           last_value = result.last[order_column] if result.any?
         end
@@ -115,6 +121,29 @@ module DatabaseSanitizer
         'id'
       else
         nil
+      end
+    end
+
+    def suspend_triggers table
+      Destination.connection.execute "ALTER TABLE #{table} DISABLE TRIGGER ALL"
+      yield
+      Destination.connection.execute "ALTER TABLE #{table} ENABLE TRIGGER ALL"
+    end
+
+    def update_sequences
+      sequences = Source.connection.exec_query <<-SQL.strip_heredoc
+SELECT s.relname, a.attname, t.relname
+FROM pg_class s
+  JOIN pg_depend d ON d.objid = s.oid
+  JOIN pg_class t ON d.objid = s.oid AND d.refobjid = t.oid
+  JOIN pg_attribute a ON (d.refobjid, d.refobjsubid) = (a.attrelid, a.attnum)
+  JOIN pg_namespace n ON n.oid = s.relnamespace
+WHERE s.relkind     = 'S'
+  AND n.nspname     = 'public'
+      SQL
+
+      sequences.rows.each do |row|
+        Destination.connection.execute "SELECT setval('#{row[0]}', (SELECT MAX(#{row[1]}) FROM #{row[2]}))"
       end
     end
   end
